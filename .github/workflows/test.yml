@@ -82,7 +82,7 @@ jobs:
           lfs: false
       - name: Add LFS Filters
         run: |
-          (cd lfs; git config --local lfs.fetchexclude '**/Windows/**')
+          cd lfs && git config --local lfs.fetchexclude "**/Windows/**"
 
       - name: Checkout LFS
         uses: ./
