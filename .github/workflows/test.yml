@@ -90,6 +90,7 @@ jobs:
           repository: actions/checkout # hardcoded, otherwise doesn't work from a fork
           ref: test-data/v2/lfs
           path: lfs
+          clean: false
           lfs: true
       - name: Verify LFS
         shell: bash
