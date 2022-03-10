@@ -6836,6 +6836,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createCommandManager = exports.MinimumGitVersion = void 0;
 const core = __importStar(__webpack_require__(470));
@@ -6847,6 +6850,7 @@ const refHelper = __importStar(__webpack_require__(227));
 const regexpHelper = __importStar(__webpack_require__(528));
 const retryHelper = __importStar(__webpack_require__(587));
 const git_version_1 = __webpack_require__(559);
+const stream_1 = __importDefault(__webpack_require__(413));
 // Auth header not supported before 2.9
 // Wire protocol v2 not supported before 2.18
 exports.MinimumGitVersion = new git_version_1.GitVersion('2.18');
@@ -7140,7 +7144,7 @@ class GitCommandManager {
     }
     tryGetFetchUrl() {
         return __awaiter(this, void 0, void 0, function* () {
-            const output = yield this.execGit(['config', '--local', '--get', 'remote.origin.url'], true);
+            const output = yield this.execGit(['config', '--local', '--get', 'remote.origin.url'], true, false, new stream_1.default.Writable);
             if (output.exitCode !== 0) {
                 return '';
             }
@@ -7164,7 +7168,7 @@ class GitCommandManager {
             return result;
         });
     }
-    execGit(args, allowAllExitCodes = false, silent = false) {
+    execGit(args, allowAllExitCodes = false, silent = false, errStream) {
         return __awaiter(this, void 0, void 0, function* () {
             fshelper.directoryExistsSync(this.workingDirectory, true);
             const result = new GitOutput();
@@ -7185,7 +7189,8 @@ class GitCommandManager {
                     stdout: (data) => {
                         stdout.push(data.toString());
                     }
-                }
+                },
+                errStream: errStream
             };
             result.exitCode = yield exec.exec(`"${this.gitPath}"`, args, options);
             result.stdout = stdout.join('');

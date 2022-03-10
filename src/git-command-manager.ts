@@ -7,6 +7,7 @@ import * as refHelper from './ref-helper'
 import * as regexpHelper from './regexp-helper'
 import * as retryHelper from './retry-helper'
 import {GitVersion} from './git-version'
+import stream from 'stream'
 
 // Auth header not supported before 2.9
 // Wire protocol v2 not supported before 2.18
@@ -363,7 +364,9 @@ class GitCommandManager {
   async tryGetFetchUrl(): Promise<string> {
     const output = await this.execGit(
       ['config', '--local', '--get', 'remote.origin.url'],
-      true
+      true,
+      false,
+      new stream.Writable
     )
 
     if (output.exitCode !== 0) {
@@ -395,7 +398,8 @@ class GitCommandManager {
   private async execGit(
     args: string[],
     allowAllExitCodes = false,
-    silent = false
+    silent = false,
+    errStream?: stream.Writable
   ): Promise<GitOutput> {
     fshelper.directoryExistsSync(this.workingDirectory, true)
 
@@ -420,7 +424,8 @@ class GitCommandManager {
         stdout: (data: Buffer) => {
           stdout.push(data.toString())
         }
-      }
+      },
+      errStream: errStream
     }
 
     result.exitCode = await exec.exec(`"${this.gitPath}"`, args, options)
