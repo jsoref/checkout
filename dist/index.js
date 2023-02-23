@@ -9371,6 +9371,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.prepareExistingDirectory = void 0;
 const assert = __importStar(__webpack_require__(357));
 const core = __importStar(__webpack_require__(470));
+const exec = __importStar(__webpack_require__(986));
 const fs = __importStar(__webpack_require__(747));
 const fsHelper = __importStar(__webpack_require__(618));
 const io = __importStar(__webpack_require__(1));
@@ -9458,11 +9459,31 @@ function prepareExistingDirectory(git, repositoryPath, repositoryUrl, clean, ref
             }
         }
         if (remove) {
+            let whoami = '';
             // Delete the contents of the directory. Don't delete the directory itself
             // since it might be the current working directory.
             core.info(`Deleting the contents of '${repositoryPath}'`);
             for (const file of yield fs.promises.readdir(repositoryPath)) {
-                yield io.rmRF(path.join(repositoryPath, file));
+                let filePath = path.join(repositoryPath, file);
+                try {
+                    yield io.rmRF(filePath);
+                }
+                catch (e) {
+                    if (whoami == '') {
+                        const options = {
+                            listeners: {
+                                stdout: (data) => {
+                                    whoami += data.toString();
+                                }
+                            },
+                            silent: true
+                        };
+                        yield exec.exec(`whoami`, undefined, options);
+                        whoami = whoami.replace("\n", "");
+                    }
+                    yield exec.exec(`sudo chown -R ${whoami} ${filePath}`);
+                    yield io.rmRF(filePath);
+                }
             }
         }
     });

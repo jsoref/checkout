@@ -1,9 +1,11 @@
 import * as assert from 'assert'
 import * as core from '@actions/core'
+import * as exec from '@actions/exec'
 import * as fs from 'fs'
 import * as fsHelper from './fs-helper'
 import * as io from '@actions/io'
 import * as path from 'path'
+import {ExecOptions} from '@actions/exec/lib/interfaces'
 import {IGitCommandManager} from './git-command-manager'
 
 export async function prepareExistingDirectory(
@@ -109,11 +111,32 @@ export async function prepareExistingDirectory(
   }
 
   if (remove) {
+    let whoami = ''
     // Delete the contents of the directory. Don't delete the directory itself
     // since it might be the current working directory.
     core.info(`Deleting the contents of '${repositoryPath}'`)
     for (const file of await fs.promises.readdir(repositoryPath)) {
-      await io.rmRF(path.join(repositoryPath, file))
+      let filePath = path.join(repositoryPath, file)
+      try {
+        await io.rmRF(filePath)
+      } catch (e) {
+        if (whoami == '') {
+          const options : ExecOptions = {
+            listeners: {
+              stdout: (data: Buffer) => {
+                whoami += data.toString()
+              }
+            },
+            silent: true
+          }
+          await exec.exec(`whoami`, undefined, options)
+          whoami = whoami.replace("\n", "")
+        }
+        await exec.exec(
+          `sudo chown -R ${whoami} ${filePath}`
+        )
+        await io.rmRF(filePath)
+      }
     }
   }
 }
