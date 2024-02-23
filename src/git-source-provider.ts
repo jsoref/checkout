@@ -15,7 +15,10 @@ import {
 } from './git-command-manager'
 import {IGitSourceSettings} from './git-source-settings'
 
-export async function getSource(settings: IGitSourceSettings): Promise<void> {
+export async function getSource(
+  settings: IGitSourceSettings
+): Promise<Array<String>> {
+  const outputs: Array<String> = []
   // Repository URL
   core.info(
     `Syncing repository: ${settings.repositoryOwner}/${settings.repositoryName}`
@@ -54,9 +57,9 @@ export async function getSource(settings: IGitSourceSettings): Promise<void> {
         await git
           .config('safe.directory', settings.repositoryPath, true, true)
           .catch(error => {
-            core.info(
-              `Failed to initialize safe directory with error: ${error}`
-            )
+            const failure = `Failed to initialize safe directory with error: ${error}`
+            outputs.push(failure)
+            core.info(failure)
           })
 
         stateHelper.setSafeDirectory()
@@ -99,7 +102,7 @@ export async function getSource(settings: IGitSourceSettings): Promise<void> {
         settings.repositoryPath,
         settings.githubServerUrl
       )
-      return
+      return outputs
     }
 
     // Save state for POST action
@@ -181,13 +184,13 @@ export async function getSource(settings: IGitSourceSettings): Promise<void> {
       // commit (push or force push). If so, fetch again with a targeted refspec.
       if (!(await refHelper.testRef(git, settings.ref, settings.commit))) {
         refSpec = refHelper.getRefSpec(settings.ref, settings.commit)
-        await git.fetch(refSpec, fetchOptions)
+        outputs.push((await git.fetch(refSpec, fetchOptions)).stdout)
       }
     } else {
       fetchOptions.fetchDepth = settings.fetchDepth
       fetchOptions.fetchTags = settings.fetchTags
       const refSpec = refHelper.getRefSpec(settings.ref, settings.commit)
-      await git.fetch(refSpec, fetchOptions)
+      outputs.push((await git.fetch(refSpec, fetchOptions)).stdout)
     }
     core.endGroup()
 
@@ -229,7 +232,9 @@ export async function getSource(settings: IGitSourceSettings): Promise<void> {
 
     // Checkout
     core.startGroup('Checking out the ref')
-    await git.checkout(checkoutInfo.ref, checkoutInfo.startPoint)
+    outputs.push(
+      (await git.checkout(checkoutInfo.ref, checkoutInfo.startPoint)).stdout
+    )
     core.endGroup()
 
     // Submodules
@@ -284,6 +289,7 @@ export async function getSource(settings: IGitSourceSettings): Promise<void> {
       authHelper.removeGlobalConfig()
     }
   }
+  return outputs
 }
 
 export async function cleanup(repositoryPath: string): Promise<void> {

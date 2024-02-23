@@ -797,7 +797,8 @@ async function setup(testName: string): Promise<void> {
     tryDisableAutomaticGarbageCollection: jest.fn(),
     tryGetFetchUrl: jest.fn(),
     tryReset: jest.fn(),
-    version: jest.fn()
+    version: jest.fn(),
+    getAndClearOutputs: jest.fn(),
   }
 
   settings = {

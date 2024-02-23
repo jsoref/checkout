@@ -22,8 +22,8 @@ export interface IGitCommandManager {
   disableSparseCheckout(): Promise<void>
   sparseCheckout(sparseCheckout: string[]): Promise<void>
   sparseCheckoutNonConeMode(sparseCheckout: string[]): Promise<void>
-  checkout(ref: string, startPoint: string): Promise<void>
-  checkoutDetach(): Promise<void>
+  checkout(ref: string, startPoint: string): Promise<GitOutput>
+  checkoutDetach(): Promise<GitOutput>
   config(
     configKey: string,
     configValue: string,
@@ -39,7 +39,7 @@ export interface IGitCommandManager {
       fetchTags?: boolean
       showProgress?: boolean
     }
-  ): Promise<void>
+  ): Promise<GitOutput>
   getDefaultBranch(repositoryUrl: string): Promise<string>
   getWorkingDirectory(): string
   init(): Promise<void>
@@ -63,6 +63,7 @@ export interface IGitCommandManager {
   tryGetFetchUrl(): Promise<string>
   tryReset(): Promise<boolean>
   version(): Promise<GitVersion>
+  getAndClearOutputs(): Array<String>
 }
 
 export async function createCommandManager(
@@ -87,6 +88,7 @@ class GitCommandManager {
   private doSparseCheckout = false
   private workingDirectory = ''
   private gitVersion: GitVersion = new GitVersion()
+  private outputs: Array<String> = []
 
   // Private constructor; use createCommandManager()
   private constructor() {}
@@ -98,7 +100,8 @@ class GitCommandManager {
     }
     args.push(branch)
 
-    await this.execGit(args)
+    const result = await this.execGit(args)
+    this.outputs.push(result.stdout)
   }
 
   async branchExists(remote: boolean, pattern: string): Promise<boolean> {
@@ -201,7 +204,7 @@ class GitCommandManager {
     )
   }
 
-  async checkout(ref: string, startPoint: string): Promise<void> {
+  async checkout(ref: string, startPoint: string): Promise<GitOutput> {
     const args = ['checkout', '--progress', '--force']
     if (startPoint) {
       args.push('-B', ref, startPoint)
@@ -209,12 +212,12 @@ class GitCommandManager {
       args.push(ref)
     }
 
-    await this.execGit(args)
+    return this.execGit(args)
   }
 
-  async checkoutDetach(): Promise<void> {
+  async checkoutDetach(): Promise<GitOutput> {
     const args = ['checkout', '--detach']
-    await this.execGit(args)
+    return this.execGit(args)
   }
 
   async config(
@@ -257,7 +260,7 @@ class GitCommandManager {
       fetchTags?: boolean
       showProgress?: boolean
     }
-  ): Promise<void> {
+  ): Promise<GitOutput> {
     const args = ['-c', 'protocol.version=2', 'fetch']
     if (!refSpec.some(x => x === refHelper.tagsRefSpec) && !options.fetchTags) {
       args.push('--no-tags')
@@ -288,8 +291,8 @@ class GitCommandManager {
     }
 
     const that = this
-    await retryHelper.execute(async () => {
-      await that.execGit(args)
+    return await retryHelper.execute(async function(): Promise<GitOutput> {
+      return that.execGit(args)
     })
   }
 
@@ -624,6 +627,10 @@ class GitCommandManager {
     const gitHttpUserAgent = `git/${this.gitVersion} (github-actions-checkout)`
     core.debug(`Set git useragent to: ${gitHttpUserAgent}`)
     this.gitEnv['GIT_HTTP_USER_AGENT'] = gitHttpUserAgent
+  }
+
+  getAndClearOutputs(): Array<String> {
+    return this.outputs.splice(0, this.outputs.length)
   }
 }
 

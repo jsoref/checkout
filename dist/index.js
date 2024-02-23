@@ -501,6 +501,7 @@ class GitCommandManager {
         this.doSparseCheckout = false;
         this.workingDirectory = '';
         this.gitVersion = new git_version_1.GitVersion();
+        this.outputs = [];
     }
     branchDelete(remote, branch) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -509,7 +510,8 @@ class GitCommandManager {
                 args.push('--remote');
             }
             args.push(branch);
-            yield this.execGit(args);
+            const result = yield this.execGit(args);
+            this.outputs.push(result.stdout);
         });
     }
     branchExists(remote, pattern) {
@@ -610,13 +612,13 @@ class GitCommandManager {
             else {
                 args.push(ref);
             }
-            yield this.execGit(args);
+            return this.execGit(args);
         });
     }
     checkoutDetach() {
         return __awaiter(this, void 0, void 0, function* () {
             const args = ['checkout', '--detach'];
-            yield this.execGit(args);
+            return this.execGit(args);
         });
     }
     config(configKey, configValue, globalConfig, add) {
@@ -666,9 +668,11 @@ class GitCommandManager {
                 args.push(arg);
             }
             const that = this;
-            yield retryHelper.execute(() => __awaiter(this, void 0, void 0, function* () {
-                yield that.execGit(args);
-            }));
+            return yield retryHelper.execute(function () {
+                return __awaiter(this, void 0, void 0, function* () {
+                    return that.execGit(args);
+                });
+            });
         });
     }
     getDefaultBranch(repositoryUrl) {
@@ -961,6 +965,9 @@ class GitCommandManager {
             this.gitEnv['GIT_HTTP_USER_AGENT'] = gitHttpUserAgent;
         });
     }
+    getAndClearOutputs() {
+        return this.outputs.splice(0, this.outputs.length);
+    }
 }
 class GitOutput {
     constructor() {
@@ -1164,6 +1171,7 @@ const urlHelper = __importStar(__nccwpck_require__(9437));
 const git_command_manager_1 = __nccwpck_require__(738);
 function getSource(settings) {
     return __awaiter(this, void 0, void 0, function* () {
+        const outputs = [];
         // Repository URL
         core.info(`Syncing repository: ${settings.repositoryOwner}/${settings.repositoryName}`);
         const repositoryUrl = urlHelper.getFetchUrl(settings);
@@ -1193,7 +1201,9 @@ function getSource(settings) {
                     yield git
                         .config('safe.directory', settings.repositoryPath, true, true)
                         .catch(error => {
-                        core.info(`Failed to initialize safe directory with error: ${error}`);
+                        const failure = `Failed to initialize safe directory with error: ${error}`;
+                        outputs.push(failure);
+                        core.info(failure);
                     });
                     stateHelper.setSafeDirectory();
                 }
@@ -1213,7 +1223,7 @@ function getSource(settings) {
                     throw new Error(`Input 'ssh-key' not supported when falling back to download using the GitHub REST API. To create a local Git repository instead, add Git ${gitCommandManager.MinimumGitVersion} or higher to the PATH.`);
                 }
                 yield githubApiHelper.downloadRepository(settings.authToken, settings.repositoryOwner, settings.repositoryName, settings.ref, settings.commit, settings.repositoryPath, settings.githubServerUrl);
-                return;
+                return outputs;
             }
             // Save state for POST action
             stateHelper.setRepositoryPath(settings.repositoryPath);
@@ -1270,14 +1280,14 @@ function getSource(settings) {
                 // commit (push or force push). If so, fetch again with a targeted refspec.
                 if (!(yield refHelper.testRef(git, settings.ref, settings.commit))) {
                     refSpec = refHelper.getRefSpec(settings.ref, settings.commit);
-                    yield git.fetch(refSpec, fetchOptions);
+                    outputs.push((yield git.fetch(refSpec, fetchOptions)).stdout);
                 }
             }
             else {
                 fetchOptions.fetchDepth = settings.fetchDepth;
                 fetchOptions.fetchTags = settings.fetchTags;
                 const refSpec = refHelper.getRefSpec(settings.ref, settings.commit);
-                yield git.fetch(refSpec, fetchOptions);
+                outputs.push((yield git.fetch(refSpec, fetchOptions)).stdout);
             }
             core.endGroup();
             // Checkout info
@@ -1313,7 +1323,7 @@ function getSource(settings) {
             }
             // Checkout
             core.startGroup('Checking out the ref');
-            yield git.checkout(checkoutInfo.ref, checkoutInfo.startPoint);
+            outputs.push((yield git.checkout(checkoutInfo.ref, checkoutInfo.startPoint)).stdout);
             core.endGroup();
             // Submodules
             if (settings.submodules) {
@@ -1352,6 +1362,7 @@ function getSource(settings) {
                 authHelper.removeGlobalConfig();
             }
         }
+        return outputs;
     });
 }
 exports.getSource = getSource;
@@ -1866,7 +1877,7 @@ function run() {
                 // Register problem matcher
                 coreCommand.issueCommand('add-matcher', {}, path.join(__dirname, 'problem-matcher.json'));
                 // Get sources
-                yield gitSourceProvider.getSource(sourceSettings);
+                core.setOutput('output', (yield gitSourceProvider.getSource(sourceSettings)));
             }
             finally {
                 // Unregister problem matcher
