@@ -24,7 +24,9 @@ async function run(): Promise<void> {
       coreCommand.issueCommand('remove-matcher', {owner: 'checkout-git'}, '')
     }
   } catch (error) {
-    core.setFailed(`${(error as any)?.message ?? error}`)
+    const failure = `${(error as any)?.message ?? error}`
+    core.setOutput('failure', failure)
+    core.setFailed(failure)
   }
 }
 

@@ -1874,7 +1874,9 @@ function run() {
             }
         }
         catch (error) {
-            core.setFailed(`${(_b = (_a = error) === null || _a === void 0 ? void 0 : _a.message) !== null && _b !== void 0 ? _b : error}`);
+            const failure = `${(_b = (_a = error) === null || _a === void 0 ? void 0 : _a.message) !== null && _b !== void 0 ? _b : error}`;
+            core.setOutput('failure', failure);
+            core.setFailed(failure);
         }
     });
 }
