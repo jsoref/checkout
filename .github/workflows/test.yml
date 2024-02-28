@@ -125,12 +125,24 @@ jobs:
         run: __test__/verify-sparse-checkout-non-cone-mode.sh
 
       # LFS
+      - name: "Checkout LFS (lfs: false)"
+        uses: ./
+        with:
+          repository: actions/checkout # hardcoded, otherwise doesn't work from a fork
+          ref: test-data/v2/lfs
+          path: lfs
+          lfs: false
+      - name: Add LFS Filters
+        run: |
+          cd lfs && git config --local lfs.fetchexclude "**/Windows/**"
+
       - name: Checkout LFS
         uses: ./
         with:
           repository: actions/checkout # hardcoded, otherwise doesn't work from a fork
           ref: test-data/v2/lfs
           path: lfs
+          clean: false
           lfs: true
       - name: Verify LFS
         shell: bash
