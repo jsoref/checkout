@@ -172,25 +172,41 @@ export async function getSource(
       fetchOptions.filter = 'blob:none'
     }
 
-    if (settings.fetchDepth <= 0) {
-      // Fetch all branches and tags
-      let refSpec = refHelper.getRefSpecForAllHistory(
-        settings.ref,
-        settings.commit
-      )
-      await git.fetch(refSpec, fetchOptions)
+    let refSpec: string[] = []
+    try {
+      if (settings.fetchDepth <= 0) {
+        // Fetch all branches and tags
+        refSpec = refHelper.getRefSpecForAllHistory(
+          settings.ref,
+          settings.commit
+        )
+        await git.fetch(refSpec, fetchOptions)
 
-      // When all history is fetched, the ref we're interested in may have moved to a different
-      // commit (push or force push). If so, fetch again with a targeted refspec.
-      if (!(await refHelper.testRef(git, settings.ref, settings.commit))) {
+        // When all history is fetched, the ref we're interested in may have moved to a different
+        // commit (push or force push). If so, fetch again with a targeted refspec.
+        if (!(await refHelper.testRef(git, settings.ref, settings.commit))) {
+          refSpec = refHelper.getRefSpec(settings.ref, settings.commit)
+          outputs.push((await git.fetch(refSpec, fetchOptions)).stdout)
+        }
+      } else {
+        fetchOptions.fetchDepth = settings.fetchDepth
+        fetchOptions.fetchTags = settings.fetchTags
         refSpec = refHelper.getRefSpec(settings.ref, settings.commit)
         outputs.push((await git.fetch(refSpec, fetchOptions)).stdout)
       }
-    } else {
-      fetchOptions.fetchDepth = settings.fetchDepth
-      fetchOptions.fetchTags = settings.fetchTags
-      const refSpec = refHelper.getRefSpec(settings.ref, settings.commit)
-      outputs.push((await git.fetch(refSpec, fetchOptions)).stdout)
+    } catch (e) {
+      core.debug(`hit an exception: ${typeof e} ... ${e}`)
+      if (refSpec) {
+        try {
+          const found = await git.lsRemote(refSpec)
+          if (!found) {
+            core.warning(`No objects found matching refSpec ${refSpec} -- this is why checkout failed`);
+          } else {
+            core.warning(`Looking for ${refSpec} ... found: ${found}`)
+          }
+        } catch (ignored) {}
+      }
+      throw e
     }
     core.endGroup()
 

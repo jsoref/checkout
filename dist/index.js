@@ -968,6 +968,17 @@ class GitCommandManager {
     getAndClearOutputs() {
         return this.outputs.splice(0, this.outputs.length);
     }
+    lsRemote(refSpec) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const args = ['-c', 'protocol.version=2', 'ls-remote'];
+            args.push('origin');
+            for (const arg of refSpec) {
+                args.push(arg);
+            }
+            const listing = yield this.execGit(args);
+            return listing.stdout;
+        });
+    }
 }
 class GitOutput {
     constructor() {
@@ -1272,22 +1283,41 @@ function getSource(settings) {
             else if (settings.sparseCheckout) {
                 fetchOptions.filter = 'blob:none';
             }
-            if (settings.fetchDepth <= 0) {
-                // Fetch all branches and tags
-                let refSpec = refHelper.getRefSpecForAllHistory(settings.ref, settings.commit);
-                yield git.fetch(refSpec, fetchOptions);
-                // When all history is fetched, the ref we're interested in may have moved to a different
-                // commit (push or force push). If so, fetch again with a targeted refspec.
-                if (!(yield refHelper.testRef(git, settings.ref, settings.commit))) {
+            let refSpec = [];
+            try {
+                if (settings.fetchDepth <= 0) {
+                    // Fetch all branches and tags
+                    refSpec = refHelper.getRefSpecForAllHistory(settings.ref, settings.commit);
+                    yield git.fetch(refSpec, fetchOptions);
+                    // When all history is fetched, the ref we're interested in may have moved to a different
+                    // commit (push or force push). If so, fetch again with a targeted refspec.
+                    if (!(yield refHelper.testRef(git, settings.ref, settings.commit))) {
+                        refSpec = refHelper.getRefSpec(settings.ref, settings.commit);
+                        outputs.push((yield git.fetch(refSpec, fetchOptions)).stdout);
+                    }
+                }
+                else {
+                    fetchOptions.fetchDepth = settings.fetchDepth;
+                    fetchOptions.fetchTags = settings.fetchTags;
                     refSpec = refHelper.getRefSpec(settings.ref, settings.commit);
                     outputs.push((yield git.fetch(refSpec, fetchOptions)).stdout);
                 }
             }
-            else {
-                fetchOptions.fetchDepth = settings.fetchDepth;
-                fetchOptions.fetchTags = settings.fetchTags;
-                const refSpec = refHelper.getRefSpec(settings.ref, settings.commit);
-                outputs.push((yield git.fetch(refSpec, fetchOptions)).stdout);
+            catch (e) {
+                core.debug(`hit an exception: ${typeof e} ... ${e}`);
+                if (refSpec) {
+                    try {
+                        const found = yield git.lsRemote(refSpec);
+                        if (!found) {
+                            core.warning(`No objects found matching refSpec ${refSpec} -- this is why checkout failed`);
+                        }
+                        else {
+                            core.warning(`Looking for ${refSpec} ... found: ${found}`);
+                        }
+                    }
+                    catch (ignored) { }
+                }
+                throw e;
             }
             core.endGroup();
             // Checkout info
@@ -1877,7 +1907,7 @@ function run() {
                 // Register problem matcher
                 coreCommand.issueCommand('add-matcher', {}, path.join(__dirname, 'problem-matcher.json'));
                 // Get sources
-                core.setOutput('output', (yield gitSourceProvider.getSource(sourceSettings)));
+                core.setOutput('output', yield gitSourceProvider.getSource(sourceSettings));
             }
             finally {
                 // Unregister problem matcher

@@ -64,6 +64,7 @@ export interface IGitCommandManager {
   tryReset(): Promise<boolean>
   version(): Promise<GitVersion>
   getAndClearOutputs(): Array<String>
+  lsRemote(refSpec: string[]): Promise<string>
 }
 
 export async function createCommandManager(
@@ -631,6 +632,17 @@ class GitCommandManager {
 
   getAndClearOutputs(): Array<String> {
     return this.outputs.splice(0, this.outputs.length)
+  }
+
+  async lsRemote(refSpec): Promise<string> {
+    const args = ['-c', 'protocol.version=2', 'ls-remote']
+    args.push('origin')
+    for (const arg of refSpec) {
+      args.push(arg)
+    }
+
+    const listing = await this.execGit(args)
+    return listing.stdout
   }
 }
 
