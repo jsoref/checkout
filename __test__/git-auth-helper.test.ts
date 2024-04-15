@@ -798,7 +798,7 @@ async function setup(testName: string): Promise<void> {
     tryGetFetchUrl: jest.fn(),
     tryReset: jest.fn(),
     version: jest.fn(),
-    getAndClearOutputs: jest.fn(),
+    getAndClearOutputs: jest.fn()
   }
 
   settings = {

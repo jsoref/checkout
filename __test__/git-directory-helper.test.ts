@@ -503,6 +503,6 @@ async function setup(testName: string): Promise<void> {
       return true
     }),
     version: jest.fn(),
-    getAndClearOutputs: jest.fn(),
+    getAndClearOutputs: jest.fn()
   }
 }
